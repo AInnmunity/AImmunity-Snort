@@ -1,0 +1,66 @@
+# Snort 3 inline IPS rules for the aimmunity.shop Codex test traffic.
+# The HTTP inspector must receive decrypted requests. Set HOME_NET for the
+# protected server and ensure by_src sees the real client, not a shared proxy.
+# Do not require a particular Host header: Session 03 tested alternate Host
+# values in 15 requests to the same protected server.
+# detection_filter emits an event only after the configured count is exceeded;
+# these drop rules therefore allow the first count matching requests.
+# Local SIDs: replace if they conflict with other local rules.
+
+# 1009001: Session 03 had 517/517 Python-http.client/3.14 requests,
+# with 502/516 inter-request gaps in the 300-399 ms range.
+drop http any any -> $HOME_NET any (
+    msg:"LOCAL rapid Python HTTP client requests to protected web server";
+    flow:to_server,established;
+    http_header:field user-agent;
+    content:"Python-http.client/3.14",nocase,fast_pattern;
+    detection_filter:track by_src,count 20,seconds 10;
+    sid:1009001;
+    rev:1;
+)
+
+# 1009002: Session 03 requested numeric API IDs 1..60 in about 22 seconds.
+# Snort counts rapid requests to numeric paths; it cannot verify ID order here.
+drop http any any -> $HOME_NET any (
+    msg:"LOCAL rapid numeric API resource enumeration";
+    flow:to_server,established;
+    http_method;
+    content:"GET";
+    http_uri:path;
+    content:"/api/v1/products/",fast_pattern;
+    pcre:"/^\/api\/v1\/products\/[0-9]+$/";
+    detection_filter:track by_src,count 15,seconds 10;
+    sid:1009002;
+    rev:1;
+)
+
+# 1009003: Session 03 sent 55 POST requests to one API endpoint,
+# repeatedly changing body content type. This rule counts endpoint activity;
+# it does not claim to recognize the exact MIME-type order.
+drop http any any -> $HOME_NET any (
+    msg:"LOCAL repeated POST requests to API echo endpoint";
+    flow:to_server,established;
+    http_method;
+    content:"POST";
+    http_uri:path;
+    content:"/api/v1/echo",fast_pattern;
+    pcre:"/^\/api\/v1\/echo$/";
+    detection_filter:track by_src,count 10,seconds 10;
+    sid:1009003;
+    rev:1;
+)
+
+# 1009004: Session 03 alternated 10 HEAD requests to numeric API IDs
+# with 10 OPTIONS requests. This rule counts the HEAD portion only.
+drop http any any -> $HOME_NET any (
+    msg:"LOCAL rapid HEAD probing of numeric API resources";
+    flow:to_server,established;
+    http_method;
+    content:"HEAD";
+    http_uri:path;
+    content:"/api/v1/products/",fast_pattern;
+    pcre:"/^\/api\/v1\/products\/[0-9]+$/";
+    detection_filter:track by_src,count 5,seconds 10;
+    sid:1009004;
+    rev:1;
+)
