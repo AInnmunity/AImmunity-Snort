@@ -17,7 +17,8 @@ AImmunity-Snort/
 ├── rules/
 │   ├── ai_ip.rules
 │   ├── ai_user_agent.rules
-│   └── codex_automation.rules
+│   ├── codex_automation.rules
+│   └── http_4xx_frequency.rules
 ├── LICENSE
 ├── README.md
 └── snort.lua
@@ -156,6 +157,8 @@ ips =
     rules = [[
         include /usr/local/etc/snort/rules/ai_ip.rules
         include /usr/local/etc/snort/rules/ai_user_agent.rules
+        include /usr/local/etc/snort/rules/codex_automation.rules
+        include /usr/local/etc/snort/rules/http_4xx_frequency.rules
     ]]
 }
 ```

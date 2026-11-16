@@ -1,0 +1,12 @@
+# Detect excessive HTTP 4xx responses from a single server to the same client.
+# Trigger an alert when more than 10 HTTP 4xx responses occur within 60 seconds.
+
+alert http (
+    msg:"AImmunity - Excessive HTTP 4xx Responses";
+    flow:to_client,established;
+    http_stat_code;
+    content:"4",depth 1;
+    detection_filter:track by_dst,count 10,seconds 60;
+    sid:2002001;
+    rev:1;
+)

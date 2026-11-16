@@ -1,0 +1,17 @@
+block http (
+    msg:"AIAGENT explicit Claude User-Agent";
+    flow:to_server,established;
+    http_header:field user-agent;
+    content:"Claude-User/1.0",nocase,fast_pattern;
+    sid:1100001;
+    rev:2;
+)
+
+block http (
+    msg:"AIAGENT explicit ChatGPT User-Agent";
+    flow:to_server,established;
+    http_header:field user-agent;
+    content:"ChatGPT-User/1.0",nocase,fast_pattern;
+    sid:1100002;
+    rev:2;
+)
