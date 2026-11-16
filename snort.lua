@@ -200,6 +200,7 @@ ips =
     rules = [[
         include /usr/local/etc/snort/rules/ai_ip.rules
         include /usr/local/etc/snort/rules/ai_user_agent.rules
+        include /usr/local/etc/snort/rules/aipt-detections.rules
         include /usr/local/etc/snort/rules/codex_automation.rules
         include /usr/local/etc/snort/rules/http_4xx_frequency.rules
     ]]
@@ -233,14 +234,20 @@ suppress =
 }
 --]]
 
---[[
-event_filter =
-{
-    -- reduce the number of events logged for some rules
-    { gid = 1, sid = 1, type = 'limit', track = 'by_src', count = 2, seconds = 10 },
-    { gid = 1, sid = 2, type = 'both',  track = 'by_dst', count = 5, seconds = 60 },
-}
---]]
+event_filter = event_filter or {}
+table.insert(event_filter, {gid=1, sid=9500006, type='both',      track='by_src', count=2,  seconds=60})
+table.insert(event_filter, {gid=1, sid=9500007, type='limit',     track='by_src', count=1,  seconds=300})
+table.insert(event_filter, {gid=1, sid=9500008, type='both',      track='by_dst', count=30, seconds=60})
+table.insert(event_filter, {gid=1, sid=9500010, type='limit',     track='by_src', count=1,  seconds=600})
+table.insert(event_filter, {gid=1, sid=9500110, type='limit',     track='by_src', count=1,  seconds=300})
+table.insert(event_filter, {gid=1, sid=9500290, type='limit',     track='by_src', count=1,  seconds=300})
+table.insert(event_filter, {gid=1, sid=9500291, type='limit',     track='by_src', count=1,  seconds=300})
+table.insert(event_filter, {gid=1, sid=9500292, type='limit',     track='by_src', count=1,  seconds=300})
+table.insert(event_filter, {gid=1, sid=9500293, type='limit',     track='by_src', count=1,  seconds=300})
+table.insert(event_filter, {gid=1, sid=9500294, type='limit',     track='by_src', count=1,  seconds=300})
+table.insert(event_filter, {gid=1, sid=9500295, type='limit',     track='by_src', count=1,  seconds=300})
+table.insert(event_filter, {gid=1, sid=9500297, type='both',      track='by_src', count=20, seconds=60})
+table.insert(event_filter, {gid=1, sid=9500299, type='both',      track='by_src', count=20, seconds=60})
 
 --[[
 rate_filter =

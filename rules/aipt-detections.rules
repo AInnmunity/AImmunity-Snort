@@ -1,0 +1,409 @@
+# ============================================================================
+# AImmunity-Snort | aipt-detections.rules
+# ============================================================================
+# 대상: Snort 3 (권장: 3.1.25.0 이상; http_header_test의 absent 조건 사용)
+# 내용: 웹 서버 관점(target-facing) Suricata 규칙 19개를 Snort 3로 변환한 파일
+# 원본: Theori, aipt-detections (suricata/aipt-target-facing.rules)
+# 출처: https://github.com/theori-io/aipt-detections
+# 라이선스: Detection Rule License (DRL) 1.1
+# 원문: https://github.com/theori-io/aipt-detections/blob/main/LICENSE
+# 변환: Suricata 옵션을 Snort 3 HTTP 버퍼·필터 구성에 맞춰 변경
+# 주석: 한국어 설명, 해석상 주의점, 오탐 가능성, 원본 정책 등 추가
+# 원본 SID / rev 및 msg는 유지 (9500001 ~ 9500299의 19개 식별자)
+# ============================================================================
+# 주의:
+#   - 모든 규칙은 alert-only. 도구 식별이 공격 성공이나 AI 사용의 증거는 아님.
+#   - 이 파일은 HTTP 페이로드를 복호화해서 볼 수 있는 센서에서만 동작.
+#   - 'Burst'/반복 조건의 원본 threshold 13개는 .rules 문법으로 포함하지 않음.
+#     이전 패키지의 aipt-event-filter.lua를 snort.lua에서 로드해야 원본에
+#     가까운 경보 억제/빈도 동작을 의도할 수 있음. 단, 엔진별 차이 검증 필요.
+#   - 특히 SID 9500008/9500297/9500299는 필터 미적용 시 단순 매칭으로 동작.
+#   - SID 9500006/9500297/9500299의 헤더 부재 및 빈 헤더 검사,
+#     정규화 방식은 Snort 버전과 센서 환경에서 PCAP으로 검증할 것.
+#   - Snort 3 -T 및 PCAP 기반 실탐지 검증 이전의 변환 후보 룰셋임.
+# ============================================================================
+
+# ============================================================================
+# 1. ARTEX 전용 시그니처 (3개)
+# ============================================================================
+# [9500001] ARTEX Enrichment Prober
+# 탐지 조건: User-Agent 값이 artex-enrich/로 시작하는 HTTP 요청
+# 탐지 의미: ARTEX enrichment/prober 구성요소의 식별 문자열을 직접 탐지
+# 오탐/한계: 동일 문자열을 임의로 설정한 클라이언트도 탐지되며 UA는 위조 가능
+# 원본 정책: block-eligible (원본 정책 등급이지 Snort drop 동작이 아님)
+# 원본 SID: 9500001 | 센서 위치: 웹 서버 측 HTTP 트래픽
+alert http any any -> $HOME_NET any (
+    msg:"AIPT ARTEX Enrichment Prober User-Agent (artex-enrich)";
+    flow:established,to_server;
+    http_header:field user-agent;
+    content:"artex-enrich/",fast_pattern,offset 0,depth 13;
+    reference:url,github.com/Autumn-27/ARTEX;
+    classtype:attempted-recon;
+    sid:9500001;
+    rev:4;
+    metadata:affected_product ARTEX, attack_target Web_Server, confidence High, created_at 2026_10_09, deployment Perimeter, performance_impact Low, signature_severity Major, tag ai_pentest, updated_at 2026_10_12;
+)
+
+# [9500002] ARTEX Norma SDK WebFetch
+# 탐지 조건: User-Agent 값이 norma/로 시작하는 HTTP 요청
+# 탐지 의미: ARTEX의 Norma SDK 웹 수집 구성요소에서 사용하는 것으로 보고된 UA 확인
+# 오탐/한계: norma/ 문자열이 다른 구현에서 사용될 가능성; AI 고유 특징 아님
+# 원본 정책: alert (원본 정책 등급이지 Snort drop 동작이 아님)
+# 원본 SID: 9500002 | 센서 위치: 웹 서버 측 HTTP 트래픽
+alert http any any -> $HOME_NET any (
+    msg:"AIPT ARTEX Norma SDK WebFetch User-Agent (norma)";
+    flow:established,to_server;
+    http_header:field user-agent;
+    content:"norma/",fast_pattern,offset 0,depth 6;
+    reference:url,github.com/Autumn-27/ARTEX;
+    classtype:attempted-recon;
+    sid:9500002;
+    rev:4;
+    metadata:affected_product ARTEX, attack_target Web_Server, confidence Medium, created_at 2026_10_09, deployment Perimeter, performance_impact Low, signature_severity Minor, tag ai_pentest, updated_at 2026_10_12;
+)
+
+# [9500004] ARTEX API Recon Skill
+# 탐지 조건: User-Agent 값이 Mozilla/5.0 (spa-api-recon 으로 시작
+# 탐지 의미: ARTEX의 API 정찰 스크립트 식별 문자열 탐지
+# 오탐/한계: 문자열 재사용 또는 UA 위조 시 오탐·미탐 발생 가능
+# 원본 정책: block-eligible (원본 정책 등급이지 Snort drop 동작이 아님)
+# 원본 SID: 9500004 | 센서 위치: 웹 서버 측 HTTP 트래픽
+alert http any any -> $HOME_NET any (
+    msg:"AIPT ARTEX api-recon Skill Script User-Agent (spa-api-recon)";
+    flow:established,to_server;
+    http_header:field user-agent;
+    content:"Mozilla/5.0 (spa-api-recon",fast_pattern,offset 0,depth 26;
+    reference:url,github.com/Autumn-27/ARTEX;
+    classtype:attempted-recon;
+    sid:9500004;
+    rev:4;
+    metadata:affected_product ARTEX, attack_target Web_Server, confidence High, created_at 2026_10_09, deployment Perimeter, performance_impact Low, signature_severity Major, tag ai_pentest, updated_at 2026_10_12;
+)
+
+
+# ============================================================================
+# 2. CyberStrikeAI 전용 시그니처 (1개)
+# ============================================================================
+# [9500207] CyberStrikeAI WebShell Manager
+# 탐지 조건: User-Agent에 CyberStrikeAI-WebShell/ 문자열 포함
+# 탐지 의미: CyberStrikeAI 웹셸 관리 기능의 요청 식별 문자열 탐지
+# 오탐/한계: 동일 UA 문자열의 복제·위조가 가능하며 웹셸 실행 성공을 의미하지 않음
+# 원본 정책: block-eligible (원본 정책 등급이지 Snort drop 동작이 아님)
+# 원본 SID: 9500207 | 센서 위치: 웹 서버 측 HTTP 트래픽
+alert http any any -> $HOME_NET any (
+    msg:"AIPT CyberStrikeAI WebShell Manager User-Agent";
+    flow:established,to_server;
+    http_header:field user-agent;
+    content:"CyberStrikeAI-WebShell/",fast_pattern;
+    reference:url,github.com/AIPentest/CyberStrikeAI;
+    classtype:trojan-activity;
+    sid:9500207;
+    rev:4;
+    metadata:affected_product CyberStrikeAI, attack_target Web_Server, confidence High, created_at 2026_10_09, deployment Perimeter, performance_impact Low, signature_severity Major, tag ai_pentest, updated_at 2026_10_12;
+)
+
+
+# ============================================================================
+# 3. HexStrike-AI 전용 시그니처 (2개)
+# ============================================================================
+# [9500223] HexStrike-AI HTTP Framework
+# 탐지 조건: User-Agent가 HexStrike-HTTP-Framework/로 시작
+# 탐지 의미: HexStrike-AI의 HTTP 프레임워크 식별 문자열 탐지
+# 오탐/한계: UA 값 변경 시 우회; 다른 도구의 문자열 재사용 가능
+# 원본 정책: block-eligible (원본 정책 등급이지 Snort drop 동작이 아님)
+# 원본 SID: 9500223 | 센서 위치: 웹 서버 측 HTTP 트래픽
+alert http any any -> $HOME_NET any (
+    msg:"AIPT HexStrike-AI HTTP Framework User-Agent";
+    flow:established,to_server;
+    http_header:field user-agent;
+    content:"HexStrike-HTTP-Framework/",fast_pattern,offset 0,depth 25;
+    reference:url,github.com/0x4m4/hexstrike-ai;
+    classtype:attempted-recon;
+    sid:9500223;
+    rev:4;
+    metadata:affected_product HexStrike_AI, attack_target Web_Server, confidence High, created_at 2026_10_09, deployment Perimeter, performance_impact Low, signature_severity Major, tag ai_pentest, updated_at 2026_10_12;
+)
+
+# [9500224] HexStrike-AI Exploit Helper
+# 탐지 조건: User-Agent가 Mozilla/5.0 (Compatible Exploit) 문자열과 일치하고 길이가 32바이트
+# 탐지 의미: HexStrike-AI exploit helper로 보고된 특정 UA 탐지
+# 오탐/한계: 해당 문자열 사용 자체가 취약점 악용 성공을 입증하지 않음
+# 원본 정책: block-eligible (원본 정책 등급이지 Snort drop 동작이 아님)
+# 원본 SID: 9500224 | 센서 위치: 웹 서버 측 HTTP 트래픽
+alert http any any -> $HOME_NET any (
+    msg:"AIPT HexStrike-AI Exploit Helper User-Agent (Compatible Exploit)";
+    flow:established,to_server;
+    http_header:field user-agent;
+    content:"Mozilla/5.0 (Compatible Exploit)",fast_pattern;
+    bufferlen:32;
+    reference:url,github.com/0x4m4/hexstrike-ai;
+    classtype:web-application-attack;
+    sid:9500224;
+    rev:4;
+    metadata:affected_product HexStrike_AI, attack_target Web_Server, confidence High, created_at 2026_10_09, deployment Perimeter, performance_impact Low, signature_severity Major, tag ai_pentest, updated_at 2026_10_12;
+)
+
+
+# ============================================================================
+# 4. 일반 HTTP 자동화/탐색 패턴 (4개)
+# ============================================================================
+# [9500006] 웹 애플리케이션 Manifest 탐색
+# 탐지 조건: GET 요청 URI에 manifest.json 계열 경로가 있고 Referer 및 Sec-Fetch-Dest 헤더가 없음
+# 탐지 의미: 브라우저 탐색 흐름과 다른 정찰성 manifest 조회 정황
+# 오탐/한계: 정상 빌드 도구·API 클라이언트·헤더 생략 브라우저 요청도 해당
+# 원본 정책: informational (원본 정책 등급이지 Snort drop 동작이 아님)
+# 빈도 제한: 동일 요청 출발지에서 60초 동안 2회: event_filter 필요
+# 원본 SID: 9500006 | 센서 위치: 웹 서버 측 HTTP 트래픽
+alert http any any -> $HOME_NET any (
+    msg:"AIPT Generic Web App Manifest Probe Without Referer";
+    flow:established,to_server;
+    http_method;
+    content:"GET";
+    http_uri;
+    pcre:"/\/(?:asset-manifest\.json|\.vite\/manifest\.json|manifest\.json)(?:\?|$)/";
+    http_header_test:field referer,absent;
+    http_raw_header;
+    pcre:!"/^sec-fetch-dest[ \t]*:/im";
+    classtype:attempted-recon;
+    sid:9500006;
+    rev:4;
+    metadata:affected_product Any, attack_target Web_Server, confidence Low, created_at 2026_10_09, deployment Perimeter, performance_impact Low, signature_severity Informational, tag ai_pentest, updated_at 2026_10_12;
+)
+
+# [9500007] Headless Chromium User-Agent
+# 탐지 조건: User-Agent에 HeadlessChrome/이 포함된 요청
+# 탐지 의미: 헤드리스 브라우저 자동화 클라이언트 식별
+# 오탐/한계: Lighthouse·QA·모니터링 등 정상 헤드리스 브라우저도 탐지
+# 원본 정책: informational (원본 정책 등급이지 Snort drop 동작이 아님)
+# 빈도 제한: 출발지별 300초에 경보 1회 제한: event_filter 필요
+# 원본 SID: 9500007 | 센서 위치: 웹 서버 측 HTTP 트래픽
+alert http any any -> $HOME_NET any (
+    msg:"AIPT Generic Headless Chromium User-Agent (browser automation)";
+    flow:established,to_server;
+    http_header:field user-agent;
+    content:"HeadlessChrome/",fast_pattern;
+    classtype:attempted-recon;
+    sid:9500007;
+    rev:4;
+    metadata:affected_product Any, attack_target Web_Server, confidence Low, created_at 2026_10_09, deployment Perimeter, performance_impact Low, signature_severity Informational, tag ai_pentest, updated_at 2026_10_12;
+)
+
+# [9500008] 404 응답 집중 발생
+# 탐지 조건: 웹 서버에서 클라이언트로 전달하는 HTTP 응답의 상태 코드가 404
+# 탐지 의미: 404 빈도 증가를 URI 열거·스캔의 간접 지표로 사용
+# 오탐/한계: 링크 손상·크롤러·정상 애플리케이션 오류도 404 증가 유발
+# 원본 정책: alert (원본 정책 등급이지 Snort drop 동작이 아님)
+# 빈도 제한: 응답 목적지 IP별 60초 동안 30회: event_filter 필요; 없으면 개별 404에 탐지
+# 원본 SID: 9500008 | 센서 위치: 웹 서버 측 HTTP 트래픽
+alert http $HOME_NET any -> any any (
+    msg:"AIPT Generic HTTP 404 Burst to Single Client (path enumeration)";
+    flow:established,to_client;
+    http_stat_code;
+    content:"404";
+    classtype:attempted-recon;
+    sid:9500008;
+    rev:4;
+    metadata:affected_product Any, attack_target Web_Server, confidence Medium, created_at 2026_10_09, deployment Perimeter, performance_impact Low, signature_severity Minor, tag ai_pentest, updated_at 2026_10_12;
+)
+
+# [9500010] Go HTTP Client 기본 UA
+# 탐지 조건: GET 요청의 User-Agent가 Go-http-client/로 시작
+# 탐지 의미: Go 표준 HTTP 클라이언트가 보내는 기본 UA 탐지
+# 오탐/한계: 정상 Go 기반 모니터링·마이크로서비스·백엔드 클라이언트도 탐지
+# 원본 정책: informational (원본 정책 등급이지 Snort drop 동작이 아님)
+# 빈도 제한: 출발지별 600초에 경보 1회 제한: event_filter 필요
+# 원본 SID: 9500010 | 센서 위치: 웹 서버 측 HTTP 트래픽
+alert http any any -> $HOME_NET any (
+    msg:"AIPT Generic Go-http-client Default User-Agent (Go agent tooling)";
+    flow:established,to_server;
+    http_method;
+    content:"GET";
+    http_header:field user-agent;
+    content:"Go-http-client/",fast_pattern,offset 0,depth 15;
+    classtype:misc-activity;
+    sid:9500010;
+    rev:4;
+    metadata:affected_product Any, attack_target Web_Server, confidence Low, created_at 2026_10_09, deployment Perimeter, performance_impact Low, signature_severity Informational, tag ai_pentest, updated_at 2026_10_12;
+)
+
+
+# ============================================================================
+# 5. 범용 스캐너/퍼징 도구 패턴 (9개)
+# ============================================================================
+# [9500110] Nmap Scripting Engine
+# 탐지 조건: User-Agent에 Nmap Scripting Engine 문자열 포함
+# 탐지 의미: Nmap NSE 기반 HTTP 점검 요청 탐지
+# 오탐/한계: 허가된 점검/정기 자산 조사도 탐지; AI 사용 여부를 의미하지 않음
+# 원본 정책: alert (원본 정책 등급이지 Snort drop 동작이 아님)
+# 빈도 제한: 출발지별 300초에 경보 1회 제한: event_filter 필요
+# 원본 SID: 9500110 | 센서 위치: 웹 서버 측 HTTP 트래픽
+alert http any any -> $HOME_NET any (
+    msg:"AIPT Scanner Nmap Scripting Engine User-Agent";
+    flow:established,to_server;
+    http_header:field user-agent;
+    content:"Nmap Scripting Engine",fast_pattern;
+    reference:url,nmap.org/book/nse.html;
+    classtype:attempted-recon;
+    sid:9500110;
+    rev:4;
+    metadata:affected_product Any, attack_target Web_Server, confidence High, created_at 2026_10_09, deployment Perimeter, performance_impact Low, signature_severity Minor, tag ai_pentest, updated_at 2026_10_12;
+)
+
+# [9500290] nuclei 브라우저형 기본 UA
+# 탐지 조건: User-Agent에 Chrome/87.0.4280.88 문자열 포함
+# 탐지 의미: nuclei 기본 브라우저형 User-Agent 지표 탐지
+# 오탐/한계: 일반 Chromium 사용자나 변경되지 않은 옛 버전의 브라우저도 일치 가능
+# 원본 정책: alert (원본 정책 등급이지 Snort drop 동작이 아님)
+# 빈도 제한: 출발지별 300초에 경보 1회 제한: event_filter 필요
+# 원본 SID: 9500290 | 센서 위치: 웹 서버 측 HTTP 트래픽
+alert http any any -> $HOME_NET any (
+    msg:"AIPT Scanner nuclei Default User-Agent (Chrome/87.0.4280.88)";
+    flow:established,to_server;
+    http_header:field user-agent;
+    content:"Chrome/87.0.4280.88",fast_pattern;
+    reference:url,github.com/projectdiscovery/nuclei;
+    classtype:attempted-recon;
+    sid:9500290;
+    rev:4;
+    metadata:affected_product Any, attack_target Web_Server, confidence Medium, created_at 2026_10_09, deployment Perimeter, performance_impact Low, signature_severity Minor, tag ai_pentest, updated_at 2026_10_12;
+)
+
+# [9500291] nuclei 프로젝트 UA
+# 탐지 조건: User-Agent에 Nuclei - Open-source project 문자열 포함
+# 탐지 의미: nuclei의 프로젝트 표기 UA 탐지
+# 오탐/한계: 허가된 취약점 스캐너도 탐지; AI Agent 고유 지표 아님
+# 원본 정책: alert (원본 정책 등급이지 Snort drop 동작이 아님)
+# 빈도 제한: 출발지별 300초에 경보 1회 제한: event_filter 필요
+# 원본 SID: 9500291 | 센서 위치: 웹 서버 측 HTTP 트래픽
+alert http any any -> $HOME_NET any (
+    msg:"AIPT Scanner nuclei Project User-Agent";
+    flow:established,to_server;
+    http_header:field user-agent;
+    content:"Nuclei - Open-source project",fast_pattern;
+    reference:url,github.com/projectdiscovery/nuclei;
+    classtype:attempted-recon;
+    sid:9500291;
+    rev:4;
+    metadata:affected_product Any, attack_target Web_Server, confidence High, created_at 2026_10_09, deployment Perimeter, performance_impact Low, signature_severity Minor, tag ai_pentest, updated_at 2026_10_12;
+)
+
+# [9500292] ffuf User-Agent
+# 탐지 조건: User-Agent에 Fuzz Faster U Fool 문자열 포함
+# 탐지 의미: ffuf 기반 HTTP 퍼징/경로 탐색 도구 식별
+# 오탐/한계: 정상 모의해킹·승인된 스캔도 포함; UA 변경 시 탐지 회피
+# 원본 정책: alert (원본 정책 등급이지 Snort drop 동작이 아님)
+# 빈도 제한: 출발지별 300초에 경보 1회 제한: event_filter 필요
+# 원본 SID: 9500292 | 센서 위치: 웹 서버 측 HTTP 트래픽
+alert http any any -> $HOME_NET any (
+    msg:"AIPT Scanner ffuf User-Agent (Fuzz Faster U Fool)";
+    flow:established,to_server;
+    http_header:field user-agent;
+    content:"Fuzz Faster U Fool",fast_pattern;
+    reference:url,github.com/ffuf/ffuf;
+    classtype:attempted-recon;
+    sid:9500292;
+    rev:4;
+    metadata:affected_product Any, attack_target Web_Server, confidence High, created_at 2026_10_09, deployment Perimeter, performance_impact Low, signature_severity Minor, tag ai_pentest, updated_at 2026_10_12;
+)
+
+# [9500293] sqlmap User-Agent
+# 탐지 조건: User-Agent가 sqlmap/로 시작
+# 탐지 의미: sqlmap의 기본 식별 문자열을 탐지
+# 오탐/한계: 승인된 SQL 인젝션 점검도 탐지; 실제 SQLi 성공 여부는 알 수 없음
+# 원본 정책: alert (원본 정책 등급이지 Snort drop 동작이 아님)
+# 빈도 제한: 출발지별 300초에 경보 1회 제한: event_filter 필요
+# 원본 SID: 9500293 | 센서 위치: 웹 서버 측 HTTP 트래픽
+alert http any any -> $HOME_NET any (
+    msg:"AIPT Scanner sqlmap User-Agent";
+    flow:established,to_server;
+    http_header:field user-agent;
+    content:"sqlmap/",fast_pattern,offset 0,depth 7;
+    reference:url,github.com/sqlmapproject/sqlmap;
+    classtype:web-application-attack;
+    sid:9500293;
+    rev:4;
+    metadata:affected_product Any, attack_target Web_Server, confidence High, created_at 2026_10_09, deployment Perimeter, performance_impact Low, signature_severity Minor, tag ai_pentest, updated_at 2026_10_12;
+)
+
+# [9500294] gobuster User-Agent
+# 탐지 조건: User-Agent가 gobuster/로 시작
+# 탐지 의미: gobuster 기반 디렉터리·도메인 정찰 요청 탐지
+# 오탐/한계: 승인된 자산 점검에서도 발생; UA 변경 시 탐지 회피
+# 원본 정책: alert (원본 정책 등급이지 Snort drop 동작이 아님)
+# 빈도 제한: 출발지별 300초에 경보 1회 제한: event_filter 필요
+# 원본 SID: 9500294 | 센서 위치: 웹 서버 측 HTTP 트래픽
+alert http any any -> $HOME_NET any (
+    msg:"AIPT Scanner gobuster User-Agent";
+    flow:established,to_server;
+    http_header:field user-agent;
+    content:"gobuster/",fast_pattern,offset 0,depth 9;
+    reference:url,github.com/OJ/gobuster;
+    classtype:attempted-recon;
+    sid:9500294;
+    rev:4;
+    metadata:affected_product Any, attack_target Web_Server, confidence High, created_at 2026_10_09, deployment Perimeter, performance_impact Low, signature_severity Minor, tag ai_pentest, updated_at 2026_10_12;
+)
+
+# [9500295] Nikto User-Agent
+# 탐지 조건: User-Agent에 (Nikto/ 문자열 포함
+# 탐지 의미: Nikto 웹 스캐너 기본 UA 탐지
+# 오탐/한계: 승인된 점검에서 발생할 수 있으며 AI Agent 고유 특징이 아님
+# 원본 정책: alert (원본 정책 등급이지 Snort drop 동작이 아님)
+# 빈도 제한: 출발지별 300초에 경보 1회 제한: event_filter 필요
+# 원본 SID: 9500295 | 센서 위치: 웹 서버 측 HTTP 트래픽
+alert http any any -> $HOME_NET any (
+    msg:"AIPT Scanner Nikto User-Agent";
+    flow:established,to_server;
+    http_header:field user-agent;
+    content:"(Nikto/",fast_pattern;
+    reference:url,github.com/sullo/nikto;
+    classtype:attempted-recon;
+    sid:9500295;
+    rev:4;
+    metadata:affected_product Any, attack_target Web_Server, confidence High, created_at 2026_10_09, deployment Perimeter, performance_impact Low, signature_severity Minor, tag ai_pentest, updated_at 2026_10_12;
+)
+
+# [9500297] 빈 User-Agent를 반복 사용하는 HTTP/1.x
+# 탐지 조건: HTTP/1.x 요청에 User-Agent 헤더는 있지만 값이 비어 있고 Authorization 및 Cookie가 없음
+# 탐지 의미: 자동화 도구가 빈 User-Agent로 다량 요청하는 패턴의 후보
+# 오탐/한계: 익명 API 클라이언트·구형 장비·정상 스크립트도 해당
+# 원본 정책: alert (원본 정책 등급이지 Snort drop 동작이 아님)
+# 빈도 제한: 출발지별 60초 동안 20회: event_filter 필요; 빈 헤더와 누락 헤더의 동등성은 PCAP 검증
+# 원본 SID: 9500297 | 센서 위치: 웹 서버 측 HTTP 트래픽
+alert http any any -> $HOME_NET any (
+    msg:"AIPT Scanner Burst of Requests With Empty User-Agent";
+    flow:established,to_server;
+    http_version;
+    content:"HTTP/1.",offset 0,depth 7;
+    http_header:field user-agent;
+    bufferlen:0;
+    http_header_test:field authorization,absent;
+    http_header_test:field cookie,absent;
+    classtype:attempted-recon;
+    sid:9500297;
+    rev:4;
+    metadata:affected_product Any, attack_target Web_Server, confidence Low, created_at 2026_10_09, deployment Perimeter, performance_impact Low, signature_severity Minor, tag ai_pentest, updated_at 2026_10_12;
+)
+
+# [9500299] User-Agent 헤더 없이 반복하는 HTTP/1.x
+# 탐지 조건: HTTP/1.x 요청에 User-Agent·Authorization·Cookie 헤더가 모두 없음
+# 탐지 의미: 최소 헤더만 사용하는 스캐너·자동화 요청의 반복 징후
+# 오탐/한계: 정상 curl/API 클라이언트 또는 테스트 도구도 해당
+# 원본 정책: alert (원본 정책 등급이지 Snort drop 동작이 아님)
+# 빈도 제한: 출발지별 60초 동안 20회: event_filter 필요
+# 원본 SID: 9500299 | 센서 위치: 웹 서버 측 HTTP 트래픽
+alert http any any -> $HOME_NET any (
+    msg:"AIPT Scanner Burst of Requests Without User-Agent Header";
+    flow:established,to_server;
+    http_version;
+    content:"HTTP/1.",offset 0,depth 7;
+    http_header_test:field user-agent,absent;
+    http_header_test:field authorization,absent;
+    http_header_test:field cookie,absent;
+    classtype:attempted-recon;
+    sid:9500299;
+    rev:4;
+    metadata:affected_product Any, attack_target Web_Server, confidence Low, created_at 2026_10_09, deployment Perimeter, performance_impact Low, signature_severity Minor, tag ai_pentest, updated_at 2026_10_12;
+)
+
+
